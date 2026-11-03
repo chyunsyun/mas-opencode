@@ -1,0 +1,56 @@
+language: ja
+shell: bash
+
+# 初回セットアップ時は OpenCode の無料モデルを自動選択します。
+# 手動で固定する場合は model に provider/model 形式で指定してください。
+# 自動選択の無効化: ./first_setup.sh --no-select-free-model
+# 再選択:           ./first_setup.sh --select-free-model
+# 明示指定:         ./first_setup.sh --free-model provider/model
+# モデル確認:       opencode models --verbose
+# 自動選択の結果は model_selection に記録されます。
+cli:
+  default: opencode
+  agents:
+    director:
+      type: opencode
+      model: ""
+    chief:
+      type: opencode
+      model: ""
+    engineer1:
+      type: opencode
+      model: ""
+    engineer2:
+      type: opencode
+      model: ""
+    engineer3:
+      type: opencode
+      model: ""
+      # エンジニア3は軽量・高速タスク専用。bloom 4以上は割り当てない。
+      max_bloom: 3
+    auditor:
+      type: opencode
+      model: ""
+
+# 自動選択時は高能力モデルに max_bloom: 4、engineer3 の速度優先モデルに max_bloom: 3 を設定する。
+# モデルごとの能力上限。未設定のモデルは max_bloom: 6 として扱う。
+# 例:
+# capability_tiers:
+#   "openai/gpt-5.4-mini":
+#     max_bloom: 3
+#   "anthropic/claude-sonnet-4-6":
+#     max_bloom: 5
+#   "anthropic/claude-opus-4-6":
+#     max_bloom: 6
+capability_tiers: {}
+
+bloom_routing:
+  enabled: true
+
+ntfy_topic: ""
+
+screenshot:
+  paths: []
+
+logging:
+  level: info

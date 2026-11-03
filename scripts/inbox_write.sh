@@ -1,148 +1,95 @@
 #!/usr/bin/env bash
-# inbox_write.sh — メールボックスへのメッセージ書き込み（排他ロック付き）
-# Usage: bash scripts/inbox_write.sh <target_agent> <content> <type> <from>
-# Example: bash scripts/inbox_write.sh karo "足軽5号、任務完了" report_received ashigaru5
-
-set -e
+set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-TARGET="$1"
-CONTENT="$2"
-TYPE="$3"
-FROM="$4"
+MAS_ROOT="${MAS_ROOT:-$SCRIPT_DIR}"
+source "${MAS_ROOT}/lib/agent_registry.sh"
 
-INBOX="$SCRIPT_DIR/queue/inbox/${TARGET}.yaml"
-LOCKFILE="${INBOX}.lock"
+TARGET="${1:-}"
+CONTENT="${2:-}"
+TYPE="${3:-}"
+FROM="${4:-}"
 
-# Validate arguments
-if [ -z "$TARGET" ] || [ -z "$CONTENT" ] || [ -z "$TYPE" ] || [ -z "$FROM" ]; then
+if [[ -z "$TARGET" || -z "$CONTENT" || -z "$TYPE" || -z "$FROM" ]]; then
     echo "Usage: inbox_write.sh <target_agent> <content> <type> <from>" >&2
     exit 1
 fi
-
-# Self-send guard: reject messages where sender == target
-if [ "$FROM" = "$TARGET" ]; then
-    echo "[inbox_write] REJECTED: self-send detected (from=$FROM, target=$TARGET)" >&2
+if [[ "$TARGET" == "$FROM" ]]; then
+    echo "[inbox_write] self-send is not allowed: $TARGET" >&2
+    exit 1
+fi
+if ! agent_registry_agents | grep -qx "$TARGET"; then
+    echo "[inbox_write] unknown target: $TARGET" >&2
     exit 1
 fi
 
-# Initialize inbox if not exists
-# dangling symlink recovery: queue/inbox が壊れたシンボリックリンクならリンク先を再生成
-_inbox_parent="$(dirname "$INBOX")"
-if [ -L "$_inbox_parent" ] && [ ! -d "$_inbox_parent" ]; then
-    mkdir -p "$(readlink "$_inbox_parent")"
-fi
-if [ ! -f "$INBOX" ]; then
-    mkdir -p "$_inbox_parent"
-    echo "messages: []" > "$INBOX"
-fi
+INBOX="${MAS_ROOT}/queue/inbox/${TARGET}.yaml"
+mkdir -p "$(dirname "$INBOX")"
+[[ -f "$INBOX" ]] || printf 'messages: []\n' > "$INBOX"
 
-# Generate unique message ID (timestamp + 4 random bytes).
-# Use `od` instead of `xxd` because `od` is available on both GNU/Linux and macOS runners by default.
-MSG_ID="msg_$(date +%Y%m%d_%H%M%S)_$(od -An -N4 -tx1 /dev/urandom | tr -d ' \n')"
-TIMESTAMP=$(date "+%Y-%m-%dT%H:%M:%S")
-
-# Cross-process lock: mkdir coordinates with OpenCode tools; flock is added when available.
-LOCK_DIR="${LOCKFILE}.d"
-
-_acquire_lock() {
-    local i=0
-    while ! mkdir "$LOCK_DIR" 2>/dev/null; do
+LOCKFILE="${INBOX}.lock"
+if command -v flock >/dev/null 2>&1; then
+    exec 9>"$LOCKFILE"
+    flock -w 5 9
+else
+    LOCKDIR="${LOCKFILE}.d"
+    i=0
+    while ! mkdir "$LOCKDIR" 2>/dev/null; do
         sleep 0.1
         i=$((i + 1))
-        [ $i -ge 50 ] && return 1  # 5s timeout
-    done
-
-    if command -v flock &>/dev/null; then
-        exec 200>"$LOCKFILE"
-        flock -w 5 200 || {
-            rmdir "$LOCK_DIR" 2>/dev/null
-            return 1
-        }
-    fi
-    return 0
-}
-
-_release_lock() {
-    if command -v flock &>/dev/null; then
-        exec 200>&-
-    fi
-    rmdir "$LOCK_DIR" 2>/dev/null || true
-}
-
-# Atomic write with lock (3 retries)
-attempt=0
-max_attempts=3
-
-while [ $attempt -lt $max_attempts ]; do
-    if _acquire_lock; then
-        trap _release_lock EXIT
-        if "$SCRIPT_DIR/.venv/bin/python3" -c "
-import yaml, sys
-
-try:
-    # Load existing inbox
-    with open('$INBOX') as f:
-        data = yaml.safe_load(f)
-
-    # Initialize if needed
-    if not data:
-        data = {}
-    if not data.get('messages'):
-        data['messages'] = []
-
-    # Add new message
-    new_msg = {
-        'id': '$MSG_ID',
-        'from': '$FROM',
-        'timestamp': '$TIMESTAMP',
-        'type': '$TYPE',
-        'content': '''$CONTENT''',
-        'read': False
-    }
-    data['messages'].append(new_msg)
-
-    # Overflow protection: keep max 50 messages
-    if len(data['messages']) > 50:
-        msgs = data['messages']
-        unread = [m for m in msgs if not m.get('read', False)]
-        read = [m for m in msgs if m.get('read', False)]
-        # Keep all unread + newest 30 read messages
-        data['messages'] = unread + read[-30:]
-
-    # Atomic write: tmp file + rename (prevents partial reads)
-    import tempfile, os
-    tmp_fd, tmp_path = tempfile.mkstemp(dir=os.path.dirname('$INBOX'), suffix='.tmp')
-    try:
-        with os.fdopen(tmp_fd, 'w') as f:
-            yaml.dump(data, f, default_flow_style=False, allow_unicode=True, indent=2)
-        os.replace(tmp_path, '$INBOX')
-    except:
-        os.unlink(tmp_path)
-        raise
-
-except Exception as e:
-    print(f'ERROR: {e}', file=sys.stderr)
-    sys.exit(1)
-"; then
-            STATUS=0
-        else
-            STATUS=$?
-        fi
-        _release_lock
-        trap - EXIT
-        [ $STATUS -eq 0 ] && exit 0
-        attempt=$((attempt + 1))
-        [ $attempt -lt $max_attempts ] && sleep 1
-    else
-        # Lock timeout
-        attempt=$((attempt + 1))
-        if [ $attempt -lt $max_attempts ]; then
-            echo "[inbox_write] Lock timeout for $INBOX (attempt $attempt/$max_attempts), retrying..." >&2
-            sleep 1
-        else
-            echo "[inbox_write] Failed to acquire lock after $max_attempts attempts for $INBOX" >&2
+        if (( i >= 50 )); then
+            echo "[inbox_write] lock timeout: $INBOX" >&2
             exit 1
         fi
-    fi
-done
+    done
+    trap 'rmdir "$LOCKDIR" 2>/dev/null || true' EXIT
+fi
+
+INBOX_PATH="$INBOX" MSG_FROM="$FROM" MSG_TYPE="$TYPE" MSG_CONTENT="$CONTENT" python3 - <<'PY'
+import datetime
+import os
+import tempfile
+import uuid
+
+import yaml
+
+path = os.environ["INBOX_PATH"]
+sender = os.environ["MSG_FROM"]
+msg_type = os.environ["MSG_TYPE"]
+content = os.environ["MSG_CONTENT"]
+
+try:
+    with open(path, encoding="utf-8") as fh:
+        data = yaml.safe_load(fh) or {}
+except FileNotFoundError:
+    data = {}
+except Exception as exc:
+    raise SystemExit(f"failed to read {path}: {exc}")
+
+messages = data.get("messages") or []
+messages.append({
+    "id": f"msg_{datetime.datetime.now():%Y%m%d_%H%M%S}_{uuid.uuid4().hex[:8]}",
+    "from": sender,
+    "timestamp": datetime.datetime.now().astimezone().isoformat(timespec="seconds"),
+    "type": msg_type,
+    "content": content,
+    "read": False,
+})
+if len(messages) > 50:
+    unread = [m for m in messages if not m.get("read", False)]
+    read = [m for m in messages if m.get("read", False)]
+    messages = unread + read[-30:]
+data["messages"] = messages
+
+fd, tmp = tempfile.mkstemp(dir=os.path.dirname(path), suffix=".tmp")
+try:
+    with os.fdopen(fd, "w", encoding="utf-8") as fh:
+        yaml.safe_dump(data, fh, allow_unicode=True, sort_keys=False, indent=2)
+    os.replace(tmp, path)
+except Exception:
+    try:
+        os.unlink(tmp)
+    except FileNotFoundError:
+        pass
+    raise
+PY

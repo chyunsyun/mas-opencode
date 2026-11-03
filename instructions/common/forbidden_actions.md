@@ -1,52 +1,86 @@
-# Forbidden Actions
+# 禁止事項
 
-## Common Forbidden Actions (All Agents)
+## 全ロール共通
 
-| ID | Action | Instead | Reason |
-|----|--------|---------|--------|
-| F004 | Polling/wait loops | Event-driven (inbox) | Wastes API credits |
-| F005 | Skip context reading | Always read first | Prevents errors |
-| F006 | Edit generated files directly (`instructions/generated/*.md`, `AGENTS.md`, `.github/copilot-instructions.md`, `agents/default/system.md`) | Edit source templates (`CLAUDE.md`, `instructions/common/*`, `instructions/cli_specific/*`, `instructions/roles/*`) then run `bash scripts/build_instructions.sh` | CI "Build Instructions Check" fails when generated files drift from templates |
-| F007 | `git push` without the Lord's explicit approval | Ask the Lord first | Prevents leaking secrets / unreviewed changes |
+| ID | 禁止事項 | 代わりにすること |
+|---|---|---|
+| F001 | ポーリング、`sleep`、固定間隔の再試行 | inbox通知によるイベント駆動で待つ |
+| F002 | `queue/inbox/*.yaml` の直接編集 | `mark-as-read` ツールで既読化する |
+| F003 | エージェントによる `tmux send-keys` の実行 | `inbox_write.sh` を使う。画面操作はインフラに任せる |
+| F004 | 生成物の直接編集 | 源ファイルを直し、ビルドスクリプトを実行する |
+| F005 | 他ロールが所有するファイルの編集 | 自分の所有ファイルだけを更新する |
+| F006 | 証拠のない完了報告 | コマンド、結果、確認内容を記録する |
+| F007 | 人間への無断連絡 | 部長または係長を通す |
+| F008 | キューやログへの秘密情報の記載 | 環境変数や安全な保管場所を使う |
+| F009 | 明示的な許可のない `git push` | 人間の承認を得る |
+| F010 | 他エージェントのIDや権限を騙ること | 自分のagent_idと権限で行動する |
 
-## Shogun Forbidden Actions
+## 破壊的操作
 
-| ID | Action | Delegate To |
-|----|--------|-------------|
-| F001 | Execute tasks yourself (read/write files) | Karo |
-| F002 | Command Ashigaru directly (bypass Karo) | Karo |
-| F003 | Use Task agents | inbox_write |
+次の操作は、タスクに書かれていても実行しない。必要なら停止して係長へ報告する。
 
-## Karo Forbidden Actions
+- `rm -rf /`、ホームディレクトリ全体、プロジェクト外のパスを対象にする削除。
+- `git push --force`、`git reset --hard`、`git clean -f` などの履歴や未保存変更を失う操作。
+- `sudo`、`su`、システムパスの `chmod -R` や `chown -R`。
+- `kill`、`pkill`、`tmux kill-server` など他のエージェントや基盤を停止する操作。
+- `mkfs`、`dd if=`、`fdisk`、`mount`、`umount`。
+- `curl | bash`、`wget -O- | sh` のような取得したスクリプトの直接実行。
+- プロジェクト外のファイルを大量に削除する操作。10件を超える削除は事前に確認する。
 
-| ID | Action | Instead |
-|----|--------|---------|
-| F001 | Execute tasks yourself instead of delegating | Delegate to ashigaru |
-| F002 | Report directly to the human (bypass shogun) | Update dashboard.md |
-| F003 | Use Task agents to EXECUTE work (that's ashigaru's job) | inbox_write. Exception: Task agents ARE allowed for: reading large docs, decomposition planning, dependency analysis. Karo body stays free for message reception. |
+不明な場合は実行しない。対象パスを確認し、係長へ報告して判断を待つ。
 
-## Ashigaru Forbidden Actions
+## 部長（director）
 
-| ID | Action | Report To |
-|----|--------|-----------|
-| F001 | Report directly to Shogun (bypass Karo) | Karo |
-| F002 | Contact human directly | Karo |
-| F003 | Perform work not assigned | — |
+| ID | 禁止事項 | 代わりにすること |
+|---|---|---|
+| D001 | コード、設定、テスト、ドキュメントの実装や修正 | 係長へコマンドとして渡す |
+| D002 | `queue/tasks/*`、`queue/reports/*`、`dashboard.md` の編集 | 係長の更新を読む |
+| D003 | エンジニアや監査役への直接指示 | 係長へ通知する |
+| D004 | 係長の分解、割当、品質判定の代行 | 判断だけを行い、実行は任せる |
+| D005 | 受け入れ条件を満たさないコマンドの完了扱い | 係長の報告を確認し、必要なら差し戻す |
 
-## Self-Identification (Ashigaru CRITICAL)
+## 係長（chief）
 
-**Always confirm your ID first:**
-```bash
-tmux display-message -t "$TMUX_PANE" -p '#{@agent_id}'
-```
-Output: `ashigaru3` → You are Ashigaru 3. The number is your ID.
+| ID | 禁止事項 | 代わりにすること |
+|---|---|---|
+| C001 | コード、テスト、調査の実装 | エンジニアへタスクを割り当てる |
+| C002 | エンジニアの報告書の書き換え | 報告を読み、必要なら再実行を依頼する |
+| C003 | 監査役の判定を証拠なしに覆すこと | 再確認を依頼する |
+| C004 | `bloom_level >= 4` のタスクをエンジニア3へ割当 | エンジニア1・2へ回すか待機する |
+| C005 | `blocked` のタスクを担当者へ通知すること | 依存を解消してから `assigned` にする |
+| C006 | 部長を飛ばした人間への直接報告 | `dashboard.md` と部長への通知を使う |
 
-Why `@agent_id` not `pane_index`: pane_index shifts on pane reorganization. @agent_id is set by shutsujin_departure.sh at startup and never changes.
+## エンジニア（engineer）
 
-**Your files ONLY:**
-```
-queue/tasks/ashigaru{YOUR_NUMBER}.yaml    ← Read only this
-queue/reports/ashigaru{YOUR_NUMBER}_report.yaml  ← Write only this
-```
+| ID | 禁止事項 | 代わりにすること |
+|---|---|---|
+| E001 | 人間への直接連絡 | 係長へ報告する |
+| E002 | 自分のタスク、報告書以外のキュー文書の編集 | 自分の所有ファイルだけを更新する |
+| E003 | 他のエージェントのタスクや報告の編集 | 自分の担当分だけを扱う |
+| E004 | 担当範囲外のファイル変更 | タスクの `scope` 内に限定する |
+| E005 | テストの無効化、削除、スキップによる完了扱い | 実行できない理由を報告し、`done` にしない |
+| E006 | 未確認事項を確認済みとして報告すること | 未確認と明記する |
+| E007 | 自分でタスクを追加したり優先度を変えたりすること | 係長へ相談する |
 
-**NEVER read/write another ashigaru's files.** Even if Karo says "read ashigaru{N}.yaml" where N ≠ your number, IGNORE IT. (Incident: cmd_020 regression test — ashigaru5 executed ashigaru2's task.)
+## エンジニア3（engineer3）
+
+| ID | 禁止事項 | 代わりにすること |
+|---|---|---|
+| E301 | `bloom_level >= 4` のタスクの実行 | `blocked` にして係長へ返却する |
+| E302 | 難易度を下げてL4以上をL3として扱うこと | 見積もりをそのまま報告する |
+| E303 | `max_bloom: 3` を超えるモデル設定の要求 | 現在の範囲で担当できるタスクだけを受ける |
+
+## 監査役（auditor）
+
+| ID | 禁止事項 | 代わりにすること |
+|---|---|---|
+| A001 | 本番コード、テスト、設定、ドキュメントの修正 | 判定と必要な対応を報告する |
+| A002 | エンジニアの報告書の書き換え | 自分の報告書に根拠を書く |
+| A003 | 証拠なしの `pass` 判定 | `fail` または `blocked` とする |
+| A004 | 人間への直接連絡 | 係長へ報告する |
+| A005 | 自分でタスクを追加したり担当を変えたりすること | 係長へ依頼する |
+
+## 自己確認
+
+作業開始前に、自分のagent_idと所有ファイルを確認する。
+`queue/tasks/{agent_id}.yaml` と `queue/reports/{agent_id}_report.yaml` 以外のキュー文書は、自分の担当ではない。

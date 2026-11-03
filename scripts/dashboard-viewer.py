@@ -304,13 +304,13 @@ def main():
     print(f"Serving: {dashboard_path}")
     print("Press Ctrl+C to stop.")
 
-    # Open browser after a short delay so the server is ready
-    def open_browser():
-        import time
-        time.sleep(0.3)
-        webbrowser.open(url)
+    if os.environ.get("MAS_OPEN_BROWSER") == "1":
+        def open_browser():
+            import time
+            time.sleep(0.3)
+            webbrowser.open(url)
 
-    threading.Thread(target=open_browser, daemon=True).start()
+        threading.Thread(target=open_browser, daemon=True).start()
 
     try:
         server.serve_forever()

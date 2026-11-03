@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # ═══════════════════════════════════════════════════════════════
 # ntfy Input Listener
-# Streams messages from ntfy topic, writes to inbox YAML, wakes shogun.
+# Streams messages from ntfy topic, writes to inbox YAML, wakes the director.
 # NOT polling — uses ntfy's streaming endpoint (long-lived HTTP connection).
 # FR-066: ntfy認証対応 (Bearer token / Basic auth)
 # ═══════════════════════════════════════════════════════════════
@@ -38,11 +38,11 @@ done < <(ntfy_get_auth_args "$SCRIPT_DIR/config/ntfy_auth.env")
 
 # JSON field extractor (python3 — jq not available)
 parse_json() {
-    "$SCRIPT_DIR/.venv/bin/python3" -c "import sys,json; print(json.load(sys.stdin).get('$1',''))" 2>/dev/null
+    python3 -c "import sys,json; print(json.load(sys.stdin).get('$1',''))" 2>/dev/null
 }
 
 parse_tags() {
-    "$SCRIPT_DIR/.venv/bin/python3" -c "import sys,json; print(','.join(json.load(sys.stdin).get('tags',[])))" 2>/dev/null
+    python3 -c "import sys,json; print(','.join(json.load(sys.stdin).get('tags',[])))" 2>/dev/null
 }
 
 append_ntfy_inbox() {
@@ -63,7 +63,7 @@ append_ntfy_inbox() {
         MSG_ID="$msg_id" \
         MSG_TS="$ts" \
         MSG_TEXT="$msg" \
-        "$SCRIPT_DIR/.venv/bin/python3" - << 'PY'
+        python3 - << 'PY'
 import datetime
 import os
 import shutil
@@ -165,10 +165,10 @@ while true; do
             continue
         fi
 
-        # Auto-reply removed — shogun replies directly after processing.
+        # Auto-reply removed — the director replies directly after processing.
 
-        # Wake shogun via inbox (ntfy処理は将軍が直接受信)
-        bash "$SCRIPT_DIR/scripts/inbox_write.sh" shogun \
+        # Wake the director via inbox (ntfy処理は部長が直接受信)
+        bash "$SCRIPT_DIR/scripts/inbox_write.sh" director \
             "ntfyから新しいメッセージ受信。queue/ntfy_inbox.yaml を確認し処理せよ。" \
             ntfy_received ntfy_listener
     done

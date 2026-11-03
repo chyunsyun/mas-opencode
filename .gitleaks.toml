@@ -1,4 +1,4 @@
-title = "Gitleaks config for multi-agent-shogun"
+title = "Gitleaks config for mas_oc"
 
 # ============================================
 # Allowlist: 許可パターン（誤検知を防ぐ）
@@ -92,7 +92,7 @@ tags = ["zenn", "personal", "pii"]
 [[rules]]
 id = "zenn-writer-skill"
 description = "AI writing skill for Zenn (workflow exposure)"
-regex = '''(?i)shogun-zenn|zenn-writer|zenn.writer'''
+regex = '''(?i)mas-zenn|zenn-writer|zenn.writer'''
 tags = ["zenn", "ai-workflow", "exposure"]
 
 [[rules]]
@@ -125,5 +125,5 @@ description = "ntfy topic name (acts as password)"
 regex = '''ntfy_topic:\s*["']?[a-zA-Z0-9_\-]{5,}["']?'''
 tags = ["ntfy", "secret"]
 [rules.allowlist]
-regexes = ['''ntfy_topic:\s*["']?shogun-yourname["']?''', '''ntfy_topic:\s*["']?your-topic["']?''', '''ntfy_topic:\s*["']?your-random-topic-name-here["']?''']
+regexes = ['''ntfy_topic:\s*["']?mas-yourname["']?''', '''ntfy_topic:\s*["']?your-topic["']?''', '''ntfy_topic:\s*["']?your-random-topic-name-here["']?''']
 paths = ['''SECURITY\.md''', '''config/ntfy_auth\.env\.sample''']

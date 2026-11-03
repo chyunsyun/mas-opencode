@@ -1,4 +1,5 @@
 import { tool } from "@opencode-ai/plugin";
+import { existsSync } from "node:fs";
 import {
   mkdir,
   readFile,
@@ -34,15 +35,15 @@ function stripYamlScalarQuotes(value: string): string {
   return value;
 }
 
-function resolveInboxPath(worktree: string, agentId: string): string {
+function resolveInboxPath(projectRoot: string, agentId: string): string {
   const normalizedAgentId = agentId.trim();
   if (!AGENT_ID_RE.test(normalizedAgentId)) {
     throw new Error(
-      `Invalid agentId ${JSON.stringify(agentId)}. Expected a simple inbox name such as karo or ashigaru3.`,
+      `Invalid agentId ${JSON.stringify(agentId)}. Expected a simple inbox name such as chief or engineer3.`,
     );
   }
 
-  const inboxRoot = path.resolve(worktree, "queue", "inbox");
+  const inboxRoot = path.resolve(projectRoot, "queue", "inbox");
   const inboxPath = path.resolve(inboxRoot, `${normalizedAgentId}.yaml`);
   const relativeToInboxRoot = path.relative(inboxRoot, inboxPath);
 
@@ -88,6 +89,12 @@ function parseInbox(raw: string): {
         blocks.push(currentBlock);
       }
       currentBlock = {};
+      const rest = line.slice(2);
+      const inlineIdMatch = rest.match(/^id:\s*(.+)$/);
+      if (inlineIdMatch) {
+        currentBlock.id = stripYamlScalarQuotes(inlineIdMatch[1].trim());
+        currentBlock.idLine = i;
+      }
       continue;
     }
 
@@ -188,7 +195,7 @@ function assertCurrentAgent(targetAgentId: string): void {
 }
 
 async function markAsRead(
-  worktree: string,
+  projectRoot: string,
   agentId: string,
   messageId: string,
 ): Promise<{
@@ -204,7 +211,7 @@ async function markAsRead(
   const normalizedAgentId = agentId.trim();
   assertCurrentAgent(normalizedAgentId);
 
-  const inboxPath = resolveInboxPath(worktree, normalizedAgentId);
+  const inboxPath = resolveInboxPath(projectRoot, normalizedAgentId);
   return withInboxLock(inboxPath, async () => {
     const raw = await readFile(inboxPath, "utf8");
     const { lines, newline, blocks } = parseInbox(raw);
@@ -214,7 +221,7 @@ async function markAsRead(
     );
     if (targetBlocks.length === 0) {
       throw new Error(
-        `Message ${JSON.stringify(normalizedMessageId)} was not found in ${path.relative(worktree, inboxPath)}.`,
+        `Message ${JSON.stringify(normalizedMessageId)} was not found in ${path.relative(projectRoot, inboxPath)}.`,
       );
     }
     if (targetBlocks.length > 1) {
@@ -226,7 +233,7 @@ async function markAsRead(
     const targetBlock = targetBlocks[0];
     if (targetBlock.read === undefined) {
       throw new Error(
-        `Message ${JSON.stringify(normalizedMessageId)} in ${path.relative(worktree, inboxPath)} has no read field.`,
+        `Message ${JSON.stringify(normalizedMessageId)} in ${path.relative(projectRoot, inboxPath)} has no read field.`,
       );
     }
 
@@ -234,7 +241,7 @@ async function markAsRead(
       return {
         inboxPath,
         relativeInboxPath: path
-          .relative(worktree, inboxPath)
+          .relative(projectRoot, inboxPath)
           .split(path.sep)
           .join("/"),
         changed: false,
@@ -243,7 +250,7 @@ async function markAsRead(
 
     if (targetBlock.readLine === undefined) {
       throw new Error(
-        `Message ${JSON.stringify(normalizedMessageId)} in ${path.relative(worktree, inboxPath)} has no read line.`,
+        `Message ${JSON.stringify(normalizedMessageId)} in ${path.relative(projectRoot, inboxPath)} has no read line.`,
       );
     }
 
@@ -257,7 +264,7 @@ async function markAsRead(
     return {
       inboxPath,
       relativeInboxPath: path
-        .relative(worktree, inboxPath)
+        .relative(projectRoot, inboxPath)
         .split(path.sep)
         .join("/"),
       changed: true,
@@ -274,7 +281,7 @@ export default tool({
       .trim()
       .regex(
         AGENT_ID_RE,
-        "Agent IDs must match an inbox file name such as karo or ashigaru3",
+        "Agent IDs must match an inbox file name such as chief or engineer3",
       )
       .describe("Target inbox owner"),
     messageId: tool.schema
@@ -284,14 +291,24 @@ export default tool({
       .describe("Inbox message id to mark as read"),
   },
   async execute(args, context) {
-    if (!context.worktree) {
+    const masRoot = process.env.MAS_ROOT?.trim();
+    const projectRoot = masRoot && masRoot !== "/" ? masRoot : context.directory;
+
+    if (!projectRoot || projectRoot === "/") {
       throw new Error(
-        "mark-as-read requires context.worktree so it can edit queue/inbox files under the repo root.",
+        "mark-as-read requires MAS_ROOT or a project directory so it can edit queue/inbox under the project root.",
+      );
+    }
+
+    const inboxRoot = path.join(projectRoot, "queue", "inbox");
+    if (!existsSync(inboxRoot)) {
+      throw new Error(
+        `mark-as-read could not find queue/inbox under ${projectRoot}. Set MAS_ROOT to the project root.`,
       );
     }
 
     const result = await markAsRead(
-      context.worktree,
+      projectRoot,
       args.agentId,
       args.messageId,
     );

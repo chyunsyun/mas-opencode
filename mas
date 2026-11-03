@@ -1,0 +1,82 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+MAS_ROOT="${MAS_ROOT:-$SCRIPT_DIR}"
+cd "$MAS_ROOT"
+
+usage() {
+    cat <<'EOF'
+mas_oc - OpenCode 専用マルチエージェント環境
+
+Usage: ./mas <command> [options]
+
+Commands:
+  setup          初回セットアップ
+  start          6名を1画面で起動
+  stop           関連プロセスを一括停止
+  status         稼働状態を表示
+  build          .opencode/agents と AGENTS.md を再生成
+  switch-model   エージェントのモデルを切り替えて再起動
+  dashboard      dashboard viewer を起動
+  version        バージョン表示
+
+Examples:
+  ./mas setup
+  ./mas start
+  ./mas start --clean
+  ./mas start --purge --yes
+  ./mas status
+  ./mas stop
+  ./mas switch-model engineer3 --model provider/model
+EOF
+}
+
+case "${1:-}" in
+    setup)
+        shift
+        bash "${MAS_ROOT}/first_setup.sh" "$@"
+        ;;
+    start)
+        shift
+        bash "${MAS_ROOT}/start.sh" "$@"
+        ;;
+    stop)
+        shift
+        bash "${MAS_ROOT}/stop.sh" "$@"
+        ;;
+    status)
+        shift
+        bash "${MAS_ROOT}/scripts/agent_status.sh" "$@"
+        ;;
+    build)
+        bash "${MAS_ROOT}/scripts/build_instructions.sh"
+        ;;
+    switch-model)
+        shift
+        bash "${MAS_ROOT}/scripts/switch_model.sh" "$@"
+        ;;
+    dashboard)
+        source "${MAS_ROOT}/lib/run_state.sh"
+        mkdir -p "${MAS_ROOT}/logs"
+        if command -v setsid >/dev/null 2>&1; then
+            setsid python3 "${MAS_ROOT}/scripts/dashboard-viewer.py" >> "${MAS_ROOT}/logs/dashboard.log" 2>&1 </dev/null &
+        else
+            python3 -c 'import os,sys; os.setsid(); os.execvp(sys.argv[1], sys.argv[1:])'                 python3 "${MAS_ROOT}/scripts/dashboard-viewer.py" >> "${MAS_ROOT}/logs/dashboard.log" 2>&1 </dev/null &
+        fi
+        mas_write_pid dashboard "$!"
+        echo "dashboard: http://127.0.0.1:8787"
+        echo "停止: ./mas stop"
+        ;;
+    version)
+        echo "mas_oc 1.0.0"
+        ;;
+    help|-h|--help|"")
+        usage
+        ;;
+    *)
+        echo "Unknown command: $1" >&2
+        usage >&2
+        exit 1
+        ;;
+esac

@@ -1,0 +1,28 @@
+mas_oc
+======
+
+mas_oc is an OpenCode-only multi-agent development environment.
+
+This product is an unofficial fork of multi-agent-shogun with modifications.
+It is not affiliated with, endorsed by, or supported by the original author.
+
+Original project
+----------------
+Name: multi-agent-shogun
+Author: yohey-w
+Repository: https://github.com/yohey-w/multi-agent-shogun
+License: MIT License
+Copyright: Copyright (c) 2026 yohey-w
+
+Upstream lineage
+----------------
+multi-agent-shogun is based on Claude-Code-Communication by Akira-Papa.
+Repository: https://github.com/Akira-Papa/Claude-Code-Communication
+
+License
+-------
+mas_oc is distributed under the MIT License. The full license text and the
+original copyright notice are provided in the LICENSE file in this repository.
+
+Please retain this NOTICE and the LICENSE file when redistributing mas_oc or
+works derived from it.

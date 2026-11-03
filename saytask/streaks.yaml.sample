@@ -1,5 +1,5 @@
 # SayTask ストリーク管理
-# 家老がcmd完了時に更新する
+# 係長がコマンド完了時に更新する
 # 使い方: このファイルを streaks.yaml にコピーして使用
 #   cp saytask/streaks.yaml.sample saytask/streaks.yaml
 streak:

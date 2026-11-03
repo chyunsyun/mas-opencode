@@ -1,76 +1,33 @@
-# Shogun Memory — Persistent Agent Context
+# mas_oc メモリ
 
-This file persists across sessions and is read by the Shogun agent at startup.
-`memory/MEMORY.md` is gitignored — your private data never enters the OSS repo.
+このファイルはセッションをまたいで保持するプロジェクト記憶である。
+`memory/MEMORY.md` はローカル専用で、リポジトリには含めない。
 
----
+## プロジェクト情報
 
-## How to Use: MEMORY.md vs Memory MCP
+- プロジェクト名: mas_oc
+- 目的: OpenCode 専用の6人マルチエージェント開発環境
+- 正本: queue/ と dashboard.md
 
-Two memory systems exist. Use them for different purposes:
+## チーム
 
-| | MEMORY.md | Memory MCP (graph) |
+| ID | 表示名 | 担当 |
 |---|---|---|
-| **Loaded** | Auto at session start | Only when you call `read_graph` |
-| **Cost** | Free (already in context) | Tokens per call |
-| **Format** | Plain text | Entities + Relations |
-| **Best for** | Rules, settings, current state | Lessons, decisions, relationships |
+| director | 部長 | 人間の窓口、最終判断 |
+| chief | 係長 | 分解、割当、進捗、品質確認の取り回し |
+| engineer1 | エンジニア1 | 実装、テスト |
+| engineer2 | エンジニア2 | 実装、テスト |
+| engineer3 | エンジニア3 | 軽量高速タスク（bloom 1-3） |
+| auditor | 監査役 | 独立した品質確認、原因分析 |
 
-**Rule of thumb:**
-- "I need this every session" → **MEMORY.md**
-- "I need to query: what caused X / what's related to Y" → **Memory MCP**
+## 運用ルール
 
-### What to put in MEMORY.md
-- Your profile (GitHub, X, etc.)
-- Stable behavioral rules for Shogun
-- CLI and agent configuration
-- Active project references and URLs
-- TODO backlog
-
-### What to put in Memory MCP
-- Incidents and their root causes (entity → caused_by → entity)
-- Architecture decisions with reasoning (decision → chosen_over → alternative)
-- Lord's preferences by category (pref → applies_to → context)
-- Cross-project lessons learned
-
-### Example Memory MCP entry
-```
-mcp__memory__create_entities([{
-  name: "incident_pr31",
-  entityType: "incident",
-  observations: ["Gunshi review skipped → venv preflight missing → deploy broke"]
-}])
-mcp__memory__create_relations([{
-  from: "incident_pr31", to: "rule_always_gunshi_infra_pr", relationType: "caused"
-}])
-```
-
----
-
-## Lord's Basic Info
-
-- **X (Twitter)**: @your_handle
-- **GitHub**: your-username
-
-## Shogun Core Rules (read every session)
-
-<!-- Add stable behavioral rules discovered through use -->
-
-## CLI Notes
-
-| CLI | Config file | Reset cmd | Notes |
-|-----|------------|-----------|-------|
-| Claude Code | CLAUDE.md | /clear | Stop hook for inbox delivery |
-
-## Agent Config
-
-<!-- Ashigaru CLI assignments, model config -->
-
-## Project Index
-
-<!-- Active projects and their YAML paths -->
-<!-- Format: - project-name: projects/foo.yaml (brief status) -->
+- 進捗と判断待ちは dashboard.md に集約する。
+- メッセージは queue/inbox/<agent_id>.yaml に保存する。
+- タスクは queue/tasks/<agent_id>.yaml、報告は queue/reports/<agent_id>_report.yaml に置く。
+- エンジニア3に bloom 4 以上を割り当てない。
+- 停止は `./mas stop` を使い、個別にプロセスを kill しない。
 
 ## TODO
 
-<!-- Persistent backlog items -->
+- なし

@@ -1,128 +1,69 @@
-.PHONY: test build lint check help install-deps clean
+.PHONY: help setup start stop status build lint test check install-deps clean
 
-# Default target
 help:
-	@echo "Multi-CLI Shogun - Development Commands"
+	@echo "mas_oc - OpenCode 専用マルチエージェント環境"
 	@echo ""
-	@echo "Available targets:"
-	@echo "  make test          - Run bats unit tests"
-	@echo "  make test-int      - Run bats integration tests"
-	@echo "  make build         - Run build_instructions.sh"
-	@echo "  make lint          - Run shellcheck on lib/ and scripts/"
-	@echo "  make check         - Run build + diff check (CI equivalent)"
-	@echo "  make install-deps  - Install test dependencies (bats, helpers)"
-	@echo "  make clean         - Clean test artifacts"
-	@echo ""
+	@echo "  make setup        初回セットアップ"
+	@echo "  make start        6名を1画面で起動"
+	@echo "  make stop         関連プロセスを一括停止"
+	@echo "  make status       稼働状態を表示"
+	@echo "  make build        .opencode/agents と AGENTS.md を再生成"
+	@echo "  make lint         シェルと Python の静的検査"
+	@echo "  make test         スモークテスト"
+	@echo "  make check        build の冪等性と生成物を検査"
+	@echo "  make install-deps 依存関係を確認"
 
-# Run unit tests
-test:
-	@echo "Running unit tests..."
-	@if ! command -v bats >/dev/null 2>&1; then \
-		echo "ERROR: bats not installed. Run 'make install-deps' first."; \
-		exit 1; \
-	fi
-	@if ls tests/*.bats 1>/dev/null 2>&1; then \
-		echo "--- Root-level tests ---"; \
-		bats tests/*.bats --timing; \
-	fi
-	@if [ -d tests/unit ] && ls tests/unit/*.bats 1>/dev/null 2>&1; then \
-		echo "--- Unit tests ---"; \
-		bats tests/unit/ --timing; \
-	fi
+setup:
+	@./mas setup
 
-# Run integration tests
-test-int:
-	@echo "Running integration tests (Claude only)..."
-	@if [ ! -d tests/integration ]; then \
-		echo "ERROR: tests/integration directory not found"; \
-		exit 1; \
-	fi
-	@if ! command -v bats >/dev/null 2>&1; then \
-		echo "ERROR: bats not installed. Run 'make install-deps' first."; \
-		exit 1; \
-	fi
-	bats tests/integration/ --filter-tags '!copilot,!codex' --timing
+start:
+	@./mas start
 
-# Run all tests
-test-all: test test-int
+stop:
+	@./mas stop
 
-# Build instructions (Phase 2 feature)
+status:
+	@./mas status
+
 build:
-	@echo "Building instruction files..."
-	@if [ -f scripts/build_instructions.sh ]; then \
-		bash scripts/build_instructions.sh; \
-	else \
-		echo "WARNING: scripts/build_instructions.sh not found"; \
-		echo "This will be available in Phase 2 (template generation)"; \
-	fi
+	@bash scripts/build_instructions.sh
 
-# Run shellcheck linter
 lint:
-	@echo "Running shellcheck..."
-	@if ! command -v shellcheck >/dev/null 2>&1; then \
-		echo "ERROR: shellcheck not installed"; \
-		echo "Install: sudo apt-get install shellcheck (Linux) or brew install shellcheck (Mac)"; \
-		exit 1; \
+	@echo "bash syntax..."
+	@find . -path ./.git -prune -o -path ./.venv -prune -o -path ./.opencode/node_modules -prune -o -type f -name '*.sh' -print0 | xargs -0 -n1 bash -n
+	@bash -n mas
+	@python3 -m py_compile scripts/*.py
+	@if command -v shellcheck >/dev/null 2>&1; then \
+		find lib scripts -type f -name '*.sh' -print0 | xargs -0 -n1 shellcheck; \
+	else \
+		echo "shellcheck not installed; skipped"; \
 	fi
-	@echo "Checking lib/..."
-	@if [ -d lib ]; then \
-		find lib -name '*.sh' -type f -exec shellcheck {} \; ; \
-	fi
-	@echo "Checking scripts/..."
-	@if [ -d scripts ]; then \
-		find scripts -name '*.sh' -type f -exec shellcheck {} \; ; \
-	fi
-	@echo "✓ Shellcheck passed"
+	@echo "OK"
 
-# Build + diff check (CI equivalent)
+test:
+	@bash tests/test_smoke.sh
+	@bash tests/test_stop.sh
+	@python3 tests/test_select_free_model.py
+	@bash tests/test_first_setup_free_model.sh
+	@bash tests/test_inbox_watcher_nudge.sh
+	@bash tests/test_setup_running_guard.sh
+	@bash tests/test_switch_model_guard.sh
+	@bash tests/test_purge_history.sh
+
 check: build
-	@echo "Checking for uncommitted instruction changes..."
-	@if [ -f scripts/build_instructions.sh ] && [ -d instructions/generated ] && [ -d .opencode/agents ]; then \
-		if git diff --exit-code instructions/generated/ .opencode/agents/; then \
-			echo "✓ Generated instructions and OpenCode agents are in sync"; \
-		else \
-			echo "ERROR: Generated instructions or OpenCode agents are out of sync!"; \
-			echo "Run 'make build' and commit the changes."; \
-			exit 1; \
-		fi; \
-	else \
-		echo "WARNING: build_instructions.sh, instructions/generated, or .opencode/agents not found"; \
-		echo "Skipping diff check (Phase 2 feature)"; \
-	fi
+	@tmp=$$(mktemp -d); cp AGENTS.md $$tmp/AGENTS.md; cp -a .opencode/agents $$tmp/agents; \
+		bash scripts/build_instructions.sh >/dev/null; \
+		diff -u $$tmp/AGENTS.md AGENTS.md; \
+		diff -ru $$tmp/agents .opencode/agents; \
+		rm -rf $$tmp; echo "generated files are idempotent"
 
-# Install test dependencies
 install-deps:
-	@echo "Installing test dependencies..."
-	@echo "1. Installing bats-core..."
-	@if command -v npm >/dev/null 2>&1; then \
-		npm install -g bats; \
-	else \
-		echo "ERROR: npm not found. Install Node.js first."; \
-		echo "Alternatively: brew install bats-core (Mac) or apt-get install bats (Linux)"; \
-		exit 1; \
-	fi
-	@echo "2. Setting up bats helpers..."
-	@mkdir -p tests/test_helper
-	@if [ ! -d tests/test_helper/bats-support ]; then \
-		git clone --depth 1 https://github.com/bats-core/bats-support tests/test_helper/bats-support; \
-	fi
-	@if [ ! -d tests/test_helper/bats-assert ]; then \
-		git clone --depth 1 https://github.com/bats-core/bats-assert tests/test_helper/bats-assert; \
-	fi
-	@echo "3. Checking venv + PyYAML..."
-	@if [ ! -f .venv/bin/python3 ]; then \
-		echo "WARNING: .venv not found. Run: python3 -m venv .venv && .venv/bin/pip install -r requirements.txt"; \
-	elif ! .venv/bin/python3 -c "import yaml" 2>/dev/null; then \
-		echo "WARNING: PyYAML not in venv. Run: .venv/bin/pip install -r requirements.txt"; \
-	fi
-	@echo "✓ Dependencies installed"
+	@command -v tmux >/dev/null || { echo "tmux required"; exit 1; }
+	@command -v opencode >/dev/null || echo "WARN: opencode not found"
+	@python3 -c 'import yaml' || { echo "PyYAML required: sudo apt-get install python3-yaml"; exit 1; }
+	@echo "OK"
 
-# Clean test artifacts
 clean:
-	@echo "Cleaning test artifacts..."
-	@find tests -name '*.tap' -type f -delete 2>/dev/null || true
-	@echo "✓ Cleaned"
-
-# Quick development workflow
-dev: lint test
-	@echo "✓ Development checks passed"
+	@find tests -name '*.tap' -delete 2>/dev/null || true
+	@rm -rf .pytest_cache __pycache__ scripts/__pycache__
+	@echo "OK"

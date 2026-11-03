@@ -2,6 +2,53 @@
 
 All notable changes to this project will be documented in this file.
 
+## [Unreleased]
+
+### Added
+- First setup selects OpenCode free models from `opencode models --verbose` (cost 0), preferring `opencode/*-free`; high-capability roles and engineer3 get separate model choices, with `capability_tiers` 4/3.
+- `scripts/select_free_model.py` and tests for selection, existing-model preservation, force, dry-run, explicit models, and no-free fallback.
+- `first_setup.sh` options: `--select-free-model`, `--no-select-free-model`, `--free-model`, `--refresh-free-models`, `--no-refresh-free-models`, `--allow-running`.
+- `lib/runtime_guard.sh` detects whether a `MAS_ROOT` instance is running without confusing separate checkouts.
+- `.opencode/skills/mas-model-switch/SKILL.md` for safe model switching in `mas_oc`.
+- `./mas start --purge --yes` deletes usage history without backup, resets agent variants and free-model selections, and falls back to `openrouter/free` when no free model is available.
+
+### Changed
+- tmux のペイン枠とペインタイトルからモデル名の表示を削除（`@model_name` メタデータは維持）。
+
+### Fixed
+- `inbox_watcher.sh` now sends the target inbox path (e.g. `queue/inbox/engineer3.yaml`) instead of `inboxN`, preventing agents from reading another agent's inbox when the unread count matches an agent number.
+- `first_setup.sh` and `scripts/select_free_model.py` refuse to change settings while the same instance is running unless `--allow-running` is given.
+- `scripts/switch_model.sh` refuses to change settings or respawn a busy agent unless `--force` is given.
+- `stop.sh` compares agent working directories by path boundary, so stopping `mas_oc` no longer kills agents in a sibling checkout such as `mas_oc2`.
+- `stop.sh` uses `/usr/bin/ss` so a user script named `ss` cannot shadow the system command.
+- `mark-as-read` resolves the project root from `MAS_ROOT` or `context.directory` and supports the `- id:` inbox format.
+- `start.sh` passes `MAS_ROOT` to the first pane so all agents, including director, receive it.
+
+## [mas_oc 1.0.0] - 2026-10-26
+
+mas_oc is an unofficial OpenCode-only fork of multi-agent-shogun v5.2.0.
+
+### Added
+- Six fixed agents: director (部長), chief (係長), engineer1-3 (エンジニア), auditor (監査役).
+- Single tmux session `mas` with one `team` window and a 3x2 six-pane layout.
+- `./mas` command dispatcher, `start.sh`, `stop.sh`, and `first_setup.sh`.
+- One-command shutdown for watchers, ntfy, dashboard, tmux panes, cron, and lock files.
+- Agent-level `max_bloom`; engineer3 is capped at 3 and excluded from Bloom 4+ work.
+- Detailed Japanese manual (`docs/manual.md`) and quick start (`docs/quickstart.md`).
+- Attribution in README, manual, `docs/attribution.md`, and `NOTICE`.
+
+### Changed
+- OpenCode-only runtime. Claude Code, Codex, Copilot, Kimi, Cursor, Gemini, and Antigravity paths were removed.
+- Role names and prompts were rewritten in natural technical Japanese.
+- Runtime state is kept inside the repository; `~/.tmux.conf` and `~/.claude` are no longer written.
+
+### Removed
+- Android companion app, multi-CLI instruction generation, Claude hooks, and legacy 7-worker formation.
+
+## Upstream history
+
+The sections below are retained from the original multi-agent-shogun project.
+
 ## [5.2.0] - 2026-06-06
 
 ### Added
