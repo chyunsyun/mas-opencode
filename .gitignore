@@ -44,3 +44,6 @@ reports/*
 .env.*
 *.pem
 *.key
+
+# settings backups created by tests/setup
+config/settings.yaml.bak*
