@@ -3,7 +3,7 @@
 set -euo pipefail
 
 SRC="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-TMP="$(mktemp -d /tmp/opencode/purge-history.XXXXXX)"
+TMP="$(mktemp -d "${TMPDIR:-/tmp}/purge-history.XXXXXX")"
 trap 'rm -rf "$TMP"' EXIT
 
 failures=0

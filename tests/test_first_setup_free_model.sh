@@ -2,7 +2,7 @@
 set -euo pipefail
 
 SRC="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-TMP="$(mktemp -d /tmp/opencode/first-setup.XXXXXX)"
+TMP="$(mktemp -d "${TMPDIR:-/tmp}/first-setup.XXXXXX")"
 trap 'rm -rf "$TMP"' EXIT
 
 fail() {
