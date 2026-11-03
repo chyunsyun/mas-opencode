@@ -68,8 +68,7 @@ mas_stop_pid() {
         else
             mas_kill_tree "$pid" TERM
         fi
-        local i
-        for i in 1 2 3 4 5; do
+        for _ in 1 2 3 4 5; do
             kill -0 "$pid" 2>/dev/null || break
             sleep 0.2
         done

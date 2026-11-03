@@ -25,7 +25,7 @@ while [[ $# -gt 0 ]]; do
         --dry-run) DRY_RUN=1; shift ;;
         --no-fetch) NO_FETCH=1; shift ;;
         --repo) REPO_OVERRIDE="$2"; shift 2 ;;
-        --settings) BRANCH_POLICY_SETTINGS="$2"; shift 2 ;;
+        --settings) export BRANCH_POLICY_SETTINGS="$2"; shift 2 ;;
         --help|-h) usage; exit 0 ;;
         *) echo "Unknown option: $1" >&2; usage >&2; exit 2 ;;
     esac

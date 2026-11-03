@@ -1,0 +1,32 @@
+language: ja
+shell: bash
+cli:
+  default: opencode
+  agents:
+    director:
+      type: opencode
+      model: ''
+    chief:
+      type: opencode
+      model: ''
+    engineer1:
+      type: opencode
+      model: ''
+    engineer2:
+      type: opencode
+      model: ''
+    engineer3:
+      type: opencode
+      model: ''
+      max_bloom: 3
+    auditor:
+      type: opencode
+      model: ''
+capability_tiers: {}
+bloom_routing:
+  enabled: true
+ntfy_topic: ''
+screenshot:
+  paths: []
+logging:
+  level: info

@@ -23,7 +23,7 @@ normalize_opencode_model() {
     [[ -z "$model" ]] && return 0
     [[ "$model" == */* ]] && { echo "$model"; return 0; }
     case "$model" in
-        gpt-5*|gpt-5.4*) echo "openai/${model}" ;;
+        gpt-5*) echo "openai/${model}" ;;
         claude-opus-4-8) echo "anthropic/claude-opus-4-8" ;;
         claude-opus-4-7) echo "anthropic/claude-opus-4-7" ;;
         claude-opus-4-6|opus) echo "anthropic/claude-opus-4-6" ;;

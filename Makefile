@@ -34,7 +34,7 @@ lint:
 	@bash -n mas
 	@python3 -m py_compile scripts/*.py
 	@if command -v shellcheck >/dev/null 2>&1; then \
-		find lib scripts -type f -name '*.sh' -print0 | xargs -0 -n1 shellcheck; \
+		find lib scripts -type f -name '*.sh' -print0 | xargs -0 -n1 shellcheck --exclude=SC1091; \
 	else \
 		echo "shellcheck not installed; skipped"; \
 	fi

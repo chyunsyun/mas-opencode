@@ -56,7 +56,7 @@ append_ntfy_inbox() {
         else
             _ld="${LOCKFILE}.d"; _i=0
             while ! mkdir "$_ld" 2>/dev/null; do sleep 0.1; _i=$((_i+1)); [ $_i -ge 50 ] && exit 1; done
-            trap "rmdir '$_ld' 2>/dev/null" EXIT
+            trap 'rmdir "$_ld" 2>/dev/null' EXIT
         fi
         NTFY_INBOX_PATH="$INBOX" \
         NTFY_CORRUPT_DIR="$CORRUPT_DIR" \
